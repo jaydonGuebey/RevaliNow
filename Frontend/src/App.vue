@@ -1,62 +1,83 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios'; // Importeer axios
-
-const dashboardData = ref(null);
-const error = ref(null);
-
-// Functie om dashboard data op te halen (we gebruiken patiënt 1 als test)
-const fetchDashboardData = async (patientId) => {
-  try {
-    // DIT IS DE BELANGRIJKE REGEL:
-    // We roepen de backend API aan die op poort 3000 draait
-    const response = await axios.get(`http://localhost:3000/api/patienten/${patientId}/dashboard`);
-    dashboardData.value = response.data;
-  } catch (err) {
-    console.error('Fout bij ophalen data:', err);
-    error.value = 'Data laden is mislukt. Draait de backend server (npm run dev in de backend map)?';
-  }
-};
-
-// Roep de functie aan zodra het component op het scherm komt
-onMounted(() => {
-  // We gebruiken '1' (Freddy Voetballer) als voorbeeld
-  // Later vervang je dit door de ID van de ingelogde gebruiker
-  fetchDashboardData(1); 
-});
+import { RouterLink, RouterView } from 'vue-router'
 </script>
 
 <template>
-  <main>
-    <h1>Mijn Dashboard</h1>
-    
-    <div v-if="error" class="error-message">
-      {{ error }}
+  <div id="app-layout">
+    <header>
+      <div class="logo">RevaliNow</div>
+      <nav>
+        <RouterLink to="/">Dashboard</RouterLink>
+        <RouterLink to="/oefeningen">Mijn Oefeningen</RouterLink>
+        <RouterLink to="/logboek">Logboek</RouterLink>
+        <RouterLink to="/pijnregistratie">Pijn Registreren</RouterLink>
+        <RouterLink to="/afspraken">Afspraken</RouterLink>
+      </nav>
+    </header>
+
+    <div class="content">
+      <RouterView />
     </div>
-    
-    <div v-if="dashboardData">
-      <h2>Welkom terug, {{ dashboardData.voornaam }} {{ dashboardData.achternaam }}!</h2>
-      
-      </div>
-    
-    <div v-else-if="!error">
-      Dashboard data laden...
-    </div>
-  </main>
+  </div>
 </template>
 
+<style>
+/* Globale stijlen (niet 'scoped') voor een cleane basis */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f4f7f6; /* Hele lichte, neutrale achtergrond */
+  color: #333;
+}
+</style>
+
 <style scoped>
-/* Je kunt de oude styles in App.vue weghalen en deze gebruiken */
-main {
-  font-family: Arial, sans-serif;
-  padding: 2rem;
+/* Stijlen specifiek voor App.vue */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2.5rem;
+  background-color: #007bff; /* Een heldere, cleane blauw */
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-.error-message {
-  color: red;
-  font-weight: bold;
-  border: 1px solid red;
-  padding: 1rem;
-  background-color: #ffeeee;
+.logo {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+nav {
+  display: flex;
+  gap: 1rem;
+}
+
+nav a {
+  color: white;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+/* Stijl voor de actieve route */
+nav a.router-link-exact-active {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Hover-effect voor niet-actieve links */
+nav a:not(.router-link-exact-active):hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.content {
+  padding: 2.5rem;
+  max-width: 1300px;
+  margin: 0 auto;
 }
 </style>
