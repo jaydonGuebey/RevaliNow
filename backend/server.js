@@ -99,11 +99,6 @@ app.get('/api/patienten/:id/oefenplannen', async (req, res) => {
     }
 
     try {
-        // Deze query is de kern. We gebruiken JOINs om data uit 3 tabellen te halen:
-        // 1. Oefenplannen (OP) - voor de sets/herhalingen
-        // 2. Oefeningen (O) - voor de naam, beschrijving, video (AC 2, 3)
-        // 3. Uitgevoerde_oefeningen (UO) - om te zien of deze VANDAAG is afgevinkt (AC 4)
-        
         const [rows] = await dbPool.query(`
             SELECT
                 OP.PatientOefenplanID,
@@ -125,7 +120,6 @@ app.get('/api/patienten/:id/oefenplannen', async (req, res) => {
                 Oefeningen AS O ON OP.OefeningID = O.OefeningID
             WHERE
                 OP.PatientID = ?
-            -- === HIER IS DE WIJZIGING ===
             ORDER BY
                 O.Naam ASC; -- Sorteer op naam (A-Z)
         `, [patientId]);
@@ -140,7 +134,6 @@ app.get('/api/patienten/:id/oefenplannen', async (req, res) => {
 
 // Markeer een oefenplan als afgerond voor vandaag
 app.post('/api/uitgevoerde-oefeningen', async (req, res) => {
-    // We verwachten de ID van het plan dat is afgevinkt
     const { patientOefenplanId } = req.body;
 
     if (!patientOefenplanId) {
@@ -160,8 +153,7 @@ app.post('/api/uitgevoerde-oefeningen', async (req, res) => {
             return res.status(409).json({ message: 'Deze oefening is vandaag al afgerond' });
         }
         
-        // 2. Genereer een nieuw ID (omdat de tabel geen AUTO_INCREMENT heeft)
-        // en voeg de nieuwe record toe.
+        // 2. Voeg de nieuwe record toe.
         const [result] = await dbPool.query(`
             INSERT INTO Uitgevoerde_oefeningen 
                 (UitgevoerdeOefeningID, PatientOefenplanID, DatumTijdAfgevinkt, IsAfgevinkt)
@@ -180,6 +172,40 @@ app.post('/api/uitgevoerde-oefeningen', async (req, res) => {
         res.status(500).json({ error: 'Interne serverfout bij afvinken' });
     }
 });
+
+// === BEGIN AANPASSING VOOR 'ONGEDAAN' KNOP ===
+
+// Maak een 'afvinken' ongedaan (verwijder de record voor vandaag)
+app.delete('/api/uitgevoerde-oefeningen', async (req, res) => {
+    const { patientOefenplanId } = req.body;
+
+    if (!patientOefenplanId) {
+        return res.status(400).json({ error: 'PatientOefenplanID ontbreekt' });
+    }
+
+    try {
+        // Verwijder de record(s) voor dit plan die VANDAAG zijn afgevinkt
+        const [result] = await dbPool.query(`
+            DELETE FROM Uitgevoerde_oefeningen
+            WHERE PatientOefenplanID = ? 
+              AND DATE(DatumTijdAfgevinkt) = CURDATE()
+        `, [patientOefenplanId]);
+
+        if (result.affectedRows === 0) {
+            // Dit is geen harde fout, maar wel goed om te weten
+            return res.status(404).json({ message: 'Geen afgeronde oefening gevonden om ongedaan te maken' });
+        }
+
+        // Stuur een success-respons terug
+        res.status(200).json({ message: 'Afvinken ongedaan gemaakt' });
+
+    } catch (err) {
+        console.error(`Fout bij DELETE /api/uitgevoerde-oefeningen:`, err);
+        res.status(500).json({ error: 'Interne serverfout bij ongedaan maken' });
+    }
+});
+
+// === EINDE AANPASSING VOOR 'ONGEDAAN' KNOP ===
 
 
 // Start de server

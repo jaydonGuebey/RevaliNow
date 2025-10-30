@@ -10,11 +10,16 @@ const props = defineProps({
 });
 
 // Definieer de events die dit component kan 'uitzenden'
-const emit = defineEmits(['vink-af']);
+const emit = defineEmits(['vink-af', 'maak-ongedaan']);
 
-// Roept het 'vink-af' event aan met de ID van deze oefening
+// Roept het 'vink-af' event aan
 const onVinkAfClick = () => {
   emit('vink-af', props.oefening.PatientOefenplanID);
+};
+
+// Roept het 'maak-ongedaan' event aan
+const onOngedaanClick = () => {
+  emit('maak-ongedaan', props.oefening.PatientOefenplanID);
 };
 
 // Helper functie om van een 'watch?v=' link een '/embed/' link te maken
@@ -41,13 +46,23 @@ const embedUrl = computed(() => {
       <p class="details">{{ oefening.Sets }} sets · {{ oefening.Herhalingen }} herhalingen</p>
       <p class="beschrijving">{{ oefening.Beschrijving }}</p>
       
-      <button 
-        v-if="!oefening.IsVandaagAfgerond" 
-        @click="onVinkAfClick" 
-        class="vink-af-knop"
-      >
-        Vink af als afgerond
-      </button>
+      <div class="knop-container">
+        <button 
+          v-if="!oefening.IsVandaagAfgerond" 
+          @click="onVinkAfClick" 
+          class="vink-af-knop"
+        >
+          Vink af als afgerond
+        </button>
+
+        <button 
+          v-if="oefening.IsVandaagAfgerond" 
+          @click="onOngedaanClick" 
+          class="ongedaan-knop"
+        >
+          Maak ongedaan
+        </button>
+      </div>
 
     </div>
     
@@ -134,8 +149,11 @@ h3 {
   color: #28a745;
 }
 
-.vink-af-knop {
+.knop-container {
   margin-top: 1.5rem;
+}
+
+.vink-af-knop {
   background-color: #007bff;
   color: white;
   border: none;
@@ -150,5 +168,22 @@ h3 {
 .vink-af-knop:hover {
   background-color: #0056b3;
   transform: translateY(-2px);
+}
+
+.ongedaan-knop {
+  background-color: transparent;
+  color: #6c757d; /* Grijs */
+  border: 1px solid #6c757d;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.ongedaan-knop:hover {
+  background-color: #6c757d;
+  color: white;
 }
 </style>

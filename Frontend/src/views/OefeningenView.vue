@@ -26,7 +26,6 @@ const fetchOefenplannen = async (patientId) => {
 };
 
 // Filter logica (AC 4)
-// Dit is een 'computed' property, die automatisch update als de 'ref's veranderen.
 const gefilterdeOefeningen = computed(() => {
   if (filterStatus.value === 'todo') {
     return oefenplannen.value.filter(oef => !oef.IsVandaagAfgerond);
@@ -37,16 +36,15 @@ const gefilterdeOefeningen = computed(() => {
   return oefenplannen.value; // 'all'
 });
 
-// Deze functie wordt aangeroepen door het event van de OefeningKaart
+// Handler voor het 'vink-af' event
 const handleVinkAf = async (planId) => {
   try {
-    // 1. Roep de nieuwe POST API aan
+    // 1. Roep de POST API aan
     await axios.post('http://localhost:3000/api/uitgevoerde-oefeningen', { 
       patientOefenplanId: planId 
     });
 
-    // 2. Update de lokale state (zeer belangrijk voor UI)
-    //    We hoeven niet opnieuw te fetchen, we weten dat het gelukt is.
+    // 2. Update de lokale state (UI)
     const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
     if (oefening) {
       oefening.IsVandaagAfgerond = true;
@@ -55,17 +53,40 @@ const handleVinkAf = async (planId) => {
   } catch (err) {
     if (err.response && err.response.status === 409) {
       // De 'al afgerond' check van de backend
-      // Update de UI voor het geval deze niet sync was
       const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
       if (oefening) oefening.IsVandaagAfgerond = true;
       
     } else {
       console.error('Fout bij afvinken:', err);
-      // Toon eventueel een foutmelding aan de gebruiker
       alert('Er ging iets mis bij het afvinken. Probeer het opnieuw.');
     }
   }
 };
+
+// === BEGIN AANPASSING VOOR 'ONGEDAAN' KNOP ===
+
+// Handler voor het 'maak-ongedaan' event
+const handleOngedaan = async (planId) => {
+  try {
+    // 1. Roep de DELETE API aan
+    // Belangrijk: axios.delete stuurt de body in een 'data' object
+    await axios.delete('http://localhost:3000/api/uitgevoerde-oefeningen', { 
+      data: { patientOefenplanId: planId }
+    });
+
+    // 2. Update de lokale state (UI)
+    const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
+    if (oefening) {
+      oefening.IsVandaagAfgerond = false;
+    }
+
+  } catch (err) {
+    console.error('Fout bij ongedaan maken:', err);
+    alert('Er ging iets mis bij het ongedaan maken. Probeer het opnieuw.');
+  }
+};
+
+// === EINDE AANPASSING VOOR 'ONGEDAAN' KNOP ===
 
 onMounted(() => {
   fetchOefenplannen(1); // Weer hardcoded voor Patient 1
@@ -97,11 +118,13 @@ onMounted(() => {
 
     <div v-if="!loading && !error" class="oefeningen-lijst">
       <div v-if="gefilterdeOefeningen.length > 0">
+        
         <OefeningKaart
           v-for="oefening in gefilterdeOefeningen"
           :key="oefening.PatientOefenplanID"
           :oefening="oefening"
           @vink-af="handleVinkAf"
+          @maak-ongedaan="handleOngedaan"
         />
       </div>
       <div v-else class="no-results">
