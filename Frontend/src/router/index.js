@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import OefeningenView from '../views/OefeningenView.vue'
+// Importeer de nieuwe view
+import PijnRegistratieView from '../views/PijnRegistratieView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -13,7 +15,7 @@ const router = createRouter({
     {
       path: '/oefeningen',
       name: 'oefeningen',
-      component: OefeningenView // <-- Hier stond eerst de placeholder
+      component: OefeningenView
     },
     {
       path: '/logboek',
@@ -23,7 +25,7 @@ const router = createRouter({
     {
       path: '/pijnregistratie',
       name: 'pijnregistratie',
-      component: { template: '<div>Pijnregistratie Pagina</div>' } // Tijdelijk
+      component: PijnRegistratieView 
     },
     {
       path: '/afspraken',
