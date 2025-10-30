@@ -24,8 +24,6 @@ app.get('/api/patienten', async (req, res) => {
   }
 });
 
-// === BEGIN AANPASSING VOOR USER STORY 1 ===
-
 // Functie om de dashboard data voor een specifieke patiënt op te halen
 app.get('/api/patienten/:id/dashboard', async (req, res) => {
     const patientId = req.params.id;
@@ -36,7 +34,7 @@ app.get('/api/patienten/:id/dashboard', async (req, res) => {
     }
 
     try {
-        // 1. Haal patiëntinformatie op (AC 1: Naam)
+        // 1. Haal patiëntinformatie op
         const [patientInfoRows] = await dbPool.query('SELECT Voornaam, Achternaam FROM Patienten WHERE PatientID = ?', [patientId]);
         
         if (patientInfoRows.length === 0) {
@@ -47,7 +45,7 @@ app.get('/api/patienten/:id/dashboard', async (req, res) => {
         // 2. Haal de rest van de data parallel op voor snelheid
         const [pijnRows, oefenRows, afspraakRows] = await Promise.all([
             
-            // Query voor AC 2: Recente pijnindicaties (max 3)
+            // Query voor Recente pijnindicaties (max 3)
             dbPool.query(`
                 SELECT PijnScore, DatumTijdRegistratie 
                 FROM Pijnindicaties 
@@ -56,7 +54,7 @@ app.get('/api/patienten/:id/dashboard', async (req, res) => {
                 LIMIT 3
             `, [patientId]),
             
-            // Query voor AC 3: Oefeningen voor vandaag
+            // Query voor Actieve oefeningen
             dbPool.query(`
                 SELECT O.Naam, OP.Herhalingen, OP.Sets 
                 FROM Oefenplannen AS OP
@@ -66,7 +64,7 @@ app.get('/api/patienten/:id/dashboard', async (req, res) => {
                   AND (OP.EindDatum >= CURDATE() OR OP.EindDatum IS NULL)
             `, [patientId]),
 
-            // Query voor AC 4: Eerstvolgende afspraak
+            // Query voor Eerstvolgende afspraak
             dbPool.query(`
                 SELECT TypeAfspraak, DatumTijdAfspraak 
                 FROM Afspraken 
@@ -91,6 +89,98 @@ app.get('/api/patienten/:id/dashboard', async (req, res) => {
          res.status(500).json({ error: 'Interne serverfout' });
     }
 });
+
+// Haal alle oefenplannen voor een specifieke patiënt op
+app.get('/api/patienten/:id/oefenplannen', async (req, res) => {
+    const patientId = req.params.id;
+
+    if (isNaN(patientId)) {
+        return res.status(400).json({ error: 'Ongeldig Patient ID' });
+    }
+
+    try {
+        // Deze query is de kern. We gebruiken JOINs om data uit 3 tabellen te halen:
+        // 1. Oefenplannen (OP) - voor de sets/herhalingen
+        // 2. Oefeningen (O) - voor de naam, beschrijving, video (AC 2, 3)
+        // 3. Uitgevoerde_oefeningen (UO) - om te zien of deze VANDAAG is afgevinkt (AC 4)
+        
+        const [rows] = await dbPool.query(`
+            SELECT
+                OP.PatientOefenplanID,
+                OP.Herhalingen,
+                OP.Sets,
+                OP.StartDatum,
+                O.Naam,
+                O.Beschrijving,
+                O.InstructieVideoURL,
+                (EXISTS (
+                    SELECT 1
+                    FROM Uitgevoerde_oefeningen UO
+                    WHERE UO.PatientOefenplanID = OP.PatientOefenplanID
+                      AND DATE(UO.DatumTijdAfgevinkt) = CURDATE()
+                )) AS IsVandaagAfgerond
+            FROM
+                Oefenplannen AS OP
+            JOIN
+                Oefeningen AS O ON OP.OefeningID = O.OefeningID
+            WHERE
+                OP.PatientID = ?
+            -- === HIER IS DE WIJZIGING ===
+            ORDER BY
+                O.Naam ASC; -- Sorteer op naam (A-Z)
+        `, [patientId]);
+
+        res.json(rows);
+
+    } catch (err) {
+        console.error(`Fout bij /api/patienten/${patientId}/oefenplannen:`, err);
+        res.status(500).json({ error: 'Interne serverfout' });
+    }
+});
+
+// Markeer een oefenplan als afgerond voor vandaag
+app.post('/api/uitgevoerde-oefeningen', async (req, res) => {
+    // We verwachten de ID van het plan dat is afgevinkt
+    const { patientOefenplanId } = req.body;
+
+    if (!patientOefenplanId) {
+        return res.status(400).json({ error: 'PatientOefenplanID ontbreekt' });
+    }
+
+    try {
+        // 1. Check eerst of deze al is afgevinkt vandaag (voorkom duplicates)
+        const [checkRows] = await dbPool.query(`
+            SELECT 1 
+            FROM Uitgevoerde_oefeningen 
+            WHERE PatientOefenplanID = ? 
+              AND DATE(DatumTijdAfgevinkt) = CURDATE()
+        `, [patientOefenplanId]);
+
+        if (checkRows.length > 0) {
+            return res.status(409).json({ message: 'Deze oefening is vandaag al afgerond' });
+        }
+        
+        // 2. Genereer een nieuw ID (omdat de tabel geen AUTO_INCREMENT heeft)
+        // en voeg de nieuwe record toe.
+        const [result] = await dbPool.query(`
+            INSERT INTO Uitgevoerde_oefeningen 
+                (UitgevoerdeOefeningID, PatientOefenplanID, DatumTijdAfgevinkt, IsAfgevinkt)
+            VALUES 
+                ((SELECT COALESCE(MAX(t.UitgevoerdeOefeningID), 0) + 1 FROM Uitgevoerde_oefeningen t), ?, NOW(), 1)
+        `, [patientOefenplanId]);
+
+        // 3. Stuur een success-respons terug
+        res.status(201).json({
+            message: 'Oefening afgerond',
+            patientOefenplanId: patientOefenplanId
+        });
+
+    } catch (err) {
+        console.error(`Fout bij POST /api/uitgevoerde-oefeningen:`, err);
+        res.status(500).json({ error: 'Interne serverfout bij afvinken' });
+    }
+});
+
 
 // Start de server
 app.listen(port, () => {
