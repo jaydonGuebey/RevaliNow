@@ -1,21 +1,23 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import axios from 'axios';
-import OefeningKaart from '../components/OefeningKaart.vue'; // Importeer je nieuwe component
+import apiClient from '../api'; // Gebruik de beveiligde apiClient
+import OefeningKaart from '../components/OefeningKaart.vue';
+// Zorg dat deze import de 'a' klein heeft
+import { useAuthStore } from '../stores/AuthStore'; 
 
-const oefenplannen = ref([]); // Hier komt alle data
+const oefenplannen = ref([]); 
 const error = ref(null);
 const loading = ref(true);
-
-// State voor de filter (AC 4)
-const filterStatus = ref('all'); // 'all', 'todo', 'done'
+const filterStatus = ref('all'); 
+const AuthStore = useAuthStore(); // Haal de store op
 
 // Haal data op van de nieuwe API
 const fetchOefenplannen = async (patientId) => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await axios.get(`http://localhost:3000/api/patienten/${patientId}/oefenplannen`);
+    // Gebruik de beveiligde apiClient en relatieve URL
+    const response = await apiClient.get(`/patienten/${patientId}/oefenplannen`);
     oefenplannen.value = response.data;
   } catch (err) {
     console.error('Fout bij ophalen oefenplannen:', err);
@@ -25,7 +27,7 @@ const fetchOefenplannen = async (patientId) => {
   }
 };
 
-// Filter logica (AC 4)
+// Filter logica
 const gefilterdeOefeningen = computed(() => {
   if (filterStatus.value === 'todo') {
     return oefenplannen.value.filter(oef => !oef.IsVandaagAfgerond);
@@ -33,18 +35,18 @@ const gefilterdeOefeningen = computed(() => {
   if (filterStatus.value === 'done') {
     return oefenplannen.value.filter(oef => oef.IsVandaagAfgerond);
   }
-  return oefenplannen.value; // 'all'
+  return oefenplannen.value;
 });
 
-// Handler voor het 'vink-af' event
+// Handler voor 'Vink af'
 const handleVinkAf = async (planId) => {
   try {
-    // 1. Roep de POST API aan
-    await axios.post('http://localhost:3000/api/uitgevoerde-oefeningen', { 
+    // Gebruik apiClient
+    await apiClient.post('/uitgevoerde-oefeningen', { 
       patientOefenplanId: planId 
     });
 
-    // 2. Update de lokale state (UI)
+    // Update de lokale state
     const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
     if (oefening) {
       oefening.IsVandaagAfgerond = true;
@@ -52,10 +54,8 @@ const handleVinkAf = async (planId) => {
 
   } catch (err) {
     if (err.response && err.response.status === 409) {
-      // De 'al afgerond' check van de backend
       const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
       if (oefening) oefening.IsVandaagAfgerond = true;
-      
     } else {
       console.error('Fout bij afvinken:', err);
       alert('Er ging iets mis bij het afvinken. Probeer het opnieuw.');
@@ -63,18 +63,15 @@ const handleVinkAf = async (planId) => {
   }
 };
 
-// === BEGIN AANPASSING VOOR 'ONGEDAAN' KNOP ===
-
-// Handler voor het 'maak-ongedaan' event
+// Handler voor 'Ongedaan maken'
 const handleOngedaan = async (planId) => {
   try {
-    // 1. Roep de DELETE API aan
-    // Belangrijk: axios.delete stuurt de body in een 'data' object
-    await axios.delete('http://localhost:3000/api/uitgevoerde-oefeningen', { 
+    // Gebruik apiClient
+    await apiClient.delete('/uitgevoerde-oefeningen', { 
       data: { patientOefenplanId: planId }
     });
 
-    // 2. Update de lokale state (UI)
+    // Update de lokale state
     const oefening = oefenplannen.value.find(oef => oef.PatientOefenplanID === planId);
     if (oefening) {
       oefening.IsVandaagAfgerond = false;
@@ -86,10 +83,13 @@ const handleOngedaan = async (planId) => {
   }
 };
 
-// === EINDE AANPASSING VOOR 'ONGEDAAN' KNOP ===
-
+// Haal data op bij het laden van de pagina
 onMounted(() => {
-  fetchOefenplannen(1); // Weer hardcoded voor Patient 1
+  // Haal de patientId veilig uit de store
+  const patientId = AuthStore.gebruiker?.patientId;
+  if(patientId) {
+    fetchOefenplannen(patientId);
+  }
 });
 </script>
 
@@ -118,11 +118,10 @@ onMounted(() => {
 
     <div v-if="!loading && !error" class="oefeningen-lijst">
       <div v-if="gefilterdeOefeningen.length > 0">
-        
         <OefeningKaart
           v-for="oefening in gefilterdeOefeningen"
           :key="oefening.PatientOefenplanID"
-          :oefening="oefening"
+          :oefening="oefening" 
           @vink-af="handleVinkAf"
           @maak-ongedaan="handleOngedaan"
         />
@@ -135,6 +134,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Alle stijlen voor OefeningenView blijven hier ongewijzigd */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -145,12 +145,10 @@ onMounted(() => {
   border-bottom: 2px solid #e0eaf1;
   padding-bottom: 1.5rem;
 }
-
 .page-header h1 {
   margin: 0;
   color: #0056b3;
 }
-
 .filter-controls {
   display: flex;
   gap: 0.5rem;
@@ -158,20 +156,17 @@ onMounted(() => {
   border-radius: 8px;
   padding: 0.5rem;
 }
-
 .filter-controls label {
   display: flex;
   align-items: center;
   position: relative;
 }
-
 .filter-controls input {
-  position: absolute; /* Verberg de echte radio button */
+  position: absolute;
   opacity: 0;
   width: 0;
   height: 0;
 }
-
 .filter-controls span {
   padding: 0.5rem 1rem;
   border-radius: 6px;
@@ -180,21 +175,17 @@ onMounted(() => {
   font-weight: 500;
   transition: background-color 0.2s, color 0.2s;
 }
-
-/* Stijl voor de geselecteerde filter-optie */
 .filter-controls input:checked + span {
   background-color: #007bff;
   color: white;
   box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
 }
-
 .loading, .no-results {
   text-align: center;
   font-size: 1.2rem;
   color: #777;
   padding: 3rem;
 }
-
 .error-message {
   color: #721c24;
   background-color: #f8d7da;

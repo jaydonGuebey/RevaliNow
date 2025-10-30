@@ -1,40 +1,53 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios'; 
+import { ref, onMounted } from 'vue'
+import apiClient from '../api' // Gebruik de beveiligde apiClient
+import { useAuthStore } from '../stores/AuthStore' // Haal de store op
 
-const dashboardData = ref(null);
-const error = ref(null);
+const dashboardData = ref(null)
+const error = ref(null)
+const AuthStore = useAuthStore() // Instantieer de store
 
+// Functie om dashboard data op te halen
 const fetchDashboardData = async (patientId) => {
   try {
-    const response = await axios.get(`http://localhost:3000/api/patienten/${patientId}/dashboard`);
-    dashboardData.value = response.data;
+    // Gebruik apiClient en de relatieve URL.
+    // De backend negeert de 'patientId' in de URL en gebruikt de ID uit het token.
+    const response = await apiClient.get(`/patienten/${patientId}/dashboard`)
+    dashboardData.value = response.data
   } catch (err) {
-    console.error('Fout bij ophalen data:', err);
-    error.value = 'Data laden is mislukt. Draait de backend server?';
+    console.error('Fout bij ophalen data:', err)
+    error.value = 'Data laden is mislukt. Draait de backend server?'
   }
-};
+}
 
+// Roep de functie aan zodra het component laadt
 onMounted(() => {
-  fetchDashboardData(1); 
-});
+  // Haal de patientId van de *ingelogde* gebruiker uit de store
+  const patientId = AuthStore.gebruiker?.patientId
+  
+  if (patientId) {
+    fetchDashboardData(patientId)
+  } else {
+    // Dit zou niet moeten gebeuren als de router guard werkt
+    error.value = "Kan patient ID niet vinden in token."
+  }
+})
 
+// Helper om datum netjes te tonen
 const formatDatum = (datumTijd) => {
-  if (!datumTijd) return '';
-  // Opties voor een kortere, cleanere datum/tijd
+  if (!datumTijd) return ''
   const options = {
     day: 'numeric',
     month: 'long',
     hour: '2-digit',
     minute: '2-digit'
   };
-  return new Date(datumTijd).toLocaleString('nl-NL', options);
-};
+  return new Date(datumTijd).toLocaleString('nl-NL', options)
+}
 </script>
 
 <template>
   <main class="dashboard">
-    
     <div v-if="error" class="error-message">
       {{ error }}
     </div>
@@ -70,7 +83,7 @@ const formatDatum = (datumTijd) => {
       </div>
 
       <div class="widget oefeningen">
-        <h3>Oefeningen voor Vandaag</h3>
+        <h3>Mijn Actieve Oefeningen</h3>
         <ul v-if="dashboardData.oefeningenVandaag.length > 0">
           <li v-for="oefening in dashboardData.oefeningenVandaag" :key="oefening.Naam">
             <span class="widget-data">{{ oefening.Naam }}</span>
@@ -78,7 +91,7 @@ const formatDatum = (datumTijd) => {
           </li>
         </ul>
         <div v-else>
-          <p class="widget-meta">Geen oefeningen voor vandaag.</p>
+          <p class="widget-meta">Geen actieve oefeningen.</p>
         </div>
       </div>
 
@@ -91,11 +104,7 @@ const formatDatum = (datumTijd) => {
 </template>
 
 <style scoped>
-/* H1 weghalen, de welkom-widget is nu de titel */
-h1 {
-  display: none;
-}
-
+/* Alle stijlen voor DashboardView blijven hier ongewijzigd */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -104,51 +113,47 @@ h1 {
 
 .widget {
   background-color: #ffffff;
-  border: 1px solid #e0eaf1; /* Lichte blauw-grijze rand */
+  border: 1px solid #e0eaf1;
   border-radius: 12px;
   padding: 1.5rem 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
-
-
+.widget:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.07);
+  transform: translateY(-2px);
+}
 .widget h3 {
   margin-top: 0;
   margin-bottom: 1.5rem;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #007bff; /* Blauwe titels */
+  color: #007bff;
   border-bottom: 2px solid #f0f0f0;
   padding-bottom: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
-
-/* Stijlen voor data en metadata in widgets */
 .widget-data {
   font-size: 1.2rem;
   font-weight: 600;
   color: #333;
   margin: 0 0 0.25rem 0;
 }
-
 .widget-meta {
   font-size: 0.9rem;
   color: #777;
   margin: 0;
 }
-
-/* Specifieke widget stijlen */
 .widget.welkom {
-  grid-column: 1 / -1; /* Volle breedte */
+  grid-column: 1 / -1;
   background: linear-gradient(to right, #e6f2ff, #f0f7ff);
   border-color: #d1e7ff;
 }
-
 .widget.welkom h2 {
   margin-top: 0;
   margin-bottom: 0.25rem;
-  color: #0056b3; /* Donkerder blauw */
+  color: #0056b3;
   font-size: 2rem;
   font-weight: 700;
 }
@@ -157,8 +162,6 @@ h1 {
   color: #0056b3;
   margin: 0;
 }
-
-/* Pijn & Oefeningen lijsten */
 .widget ul {
   padding-left: 0;
   margin: 0;
@@ -167,7 +170,6 @@ h1 {
   flex-direction: column;
   gap: 1rem;
 }
-
 .widget ul li {
   display: flex;
   justify-content: space-between;
@@ -179,7 +181,6 @@ h1 {
   border-bottom: none;
   padding-bottom: 0;
 }
-
 .pijn-score {
   font-size: 1.1rem;
   font-weight: 700;
@@ -188,8 +189,6 @@ h1 {
   padding: 0.25rem 0.75rem;
   border-radius: 6px;
 }
-
-/* Error & Loading */
 .error-message {
   color: #721c24;
   background-color: #f8d7da;
@@ -198,7 +197,6 @@ h1 {
   border-radius: 12px;
   font-weight: 500;
 }
-
 .loading {
   font-size: 1.2rem;
   color: #555;

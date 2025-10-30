@@ -1,17 +1,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
-import PijnGrafiek from '../components/PijnGrafiek.vue' // Importeer het grafiek-component
+import apiClient from '../api' // Gebruik de beveiligde apiClient
+import PijnGrafiek from '../components/PijnGrafiek.vue'
+// Zorg dat deze import de 'a' klein heeft
+import { useAuthStore } from '../stores/AuthStore'
 
-// State voor het formulier
-const pijnScore = ref(5) // (AC 1)
-const toelichting = ref('') // (AC 2)
+const pijnScore = ref(5) 
+const toelichting = ref('') 
 const error = ref(null)
 const successMessage = ref(null)
 const loading = ref(true)
-
-// State voor de grafiek (AC 4)
 const allePijnscores = ref([]) 
+const AuthStore = useAuthStore() // Haal de store op
 
 // Helper om datum te formatteren
 const formatDatumKort = (datumTijd) => {
@@ -23,11 +23,11 @@ const formatDatumKort = (datumTijd) => {
   })
 }
 
-// Data ophalen voor de grafiek (AC 4)
+// Haal data op voor de grafiek
 const fetchPijnData = async (patientId) => {
   loading.value = true
   try {
-    const response = await axios.get(`http://localhost:3000/api/patienten/${patientId}/pijnindicaties`)
+    const response = await apiClient.get(`/patienten/${patientId}/pijnindicaties`)
     allePijnscores.value = response.data
   } catch (err) {
     console.error('Fout bij ophalen pijndata:', err)
@@ -42,24 +42,26 @@ const handleSubmit = async () => {
   error.value = null
   successMessage.value = null
   
-  // (AC 5) Frontend validatie
   if (pijnScore.value < 0 || pijnScore.value > 10) {
     error.value = 'Pijnscore moet tussen 0 en 10 zijn.'
     return
   }
   
   try {
-    // (AC 1, 2, 3) Stuur data naar de POST API
-    const response = await axios.post('http://localhost:3000/api/pijnindicaties', {
-      patientId: 1, // Hardcoded voor Freddy
+    // Haal de patientId uit de store
+    const patientId = AuthStore.gebruiker?.patientId
+    if (!patientId) {
+      throw new Error('Geen patientId gevonden in token.')
+    }
+    
+    // Gebruik apiClient en stuur de patientId mee in de body
+    const response = await apiClient.post('/pijnindicaties', {
+      patientId: patientId, 
       pijnScore: pijnScore.value,
       toelichting: toelichting.value
     })
 
-    // Update de grafiek-data lokaal voor een directe update
     allePijnscores.value.push(response.data)
-
-    // Reset het formulier
     pijnScore.value = 5
     toelichting.value = ''
     successMessage.value = 'Pijnindicatie succesvol opgeslagen!'
@@ -72,10 +74,13 @@ const handleSubmit = async () => {
 
 // Data ophalen zodra de pagina laadt
 onMounted(() => {
-  fetchPijnData(1)
+  const patientId = AuthStore.gebruiker?.patientId
+  if (patientId) {
+    fetchPijnData(patientId)
+  }
 })
 
-// (AC 4) Data formattering voor het PijnGrafiek component
+// Data formattering voor het PijnGrafiek component
 const computedChartData = computed(() => {
   return {
     labels: allePijnscores.value.map(p => formatDatumKort(p.DatumTijdRegistratie)),
@@ -84,11 +89,11 @@ const computedChartData = computed(() => {
         label: 'Pijnscore',
         backgroundColor: '#007bff',
         borderColor: '#007bff',
-        tension: 0.2, // Vloeiende lijn
+        tension: 0.2,
         data: allePijnscores.value.map(p => ({
             x: formatDatumKort(p.DatumTijdRegistratie),
             y: p.PijnScore,
-            toelichting: p.Toelichting // (AC 2) Geef toelichting mee aan grafiek
+            toelichting: p.Toelichting
         }))
       }
     ]
@@ -153,13 +158,12 @@ const computedChartData = computed(() => {
 </template>
 
 <style scoped>
+/* Alle stijlen voor PijnRegistratieView blijven hier ongewijzigd */
 .page-grid {
   display: grid;
-  grid-template-columns: 1fr 2fr; /* 1/3 voor formulier, 2/3 voor grafiek */
+  grid-template-columns: 1fr 2fr;
   gap: 2rem;
 }
-
-/* Gedeelde widget-stijl */
 .widget {
   background-color: #ffffff;
   border: 1px solid #e0eaf1;
@@ -167,27 +171,22 @@ const computedChartData = computed(() => {
   padding: 2rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
-
 .widget h2 {
   margin-top: 0;
   color: #0056b3;
 }
-
 .form-group {
   margin-bottom: 1.5rem;
 }
-
 .form-group label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.5rem;
   color: #333;
 }
-
 .slider-group label {
   margin-bottom: 1rem;
 }
-
 .slider-labels {
   display: flex;
   justify-content: space-between;
@@ -195,12 +194,10 @@ const computedChartData = computed(() => {
   color: #777;
   margin-bottom: 0.25rem;
 }
-
 input[type="range"] {
   width: 100%;
   cursor: pointer;
 }
-
 textarea {
   width: 100%;
   padding: 0.75rem;
@@ -208,9 +205,8 @@ textarea {
   border-radius: 8px;
   font-family: inherit;
   font-size: 1rem;
-  box-sizing: border-box; 
+  box-sizing: border-box;
 }
-
 .submit-knop {
   width: 100%;
   background-color: #007bff;
@@ -223,11 +219,9 @@ textarea {
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
-
 .submit-knop:hover {
   background-color: #0056b3;
 }
-
 .message {
   padding: 1rem;
   border-radius: 8px;
@@ -245,8 +239,6 @@ textarea {
   color: #721c24;
   border: 1px solid #f5c6cb;
 }
-
-/* Stijlen voor grafiek-deel */
 .chart-wrapper h2 {
   color: #0056b3;
   margin-top: 0;
@@ -260,8 +252,6 @@ textarea {
   border: 1px solid #e0eaf1;
   border-radius: 12px;
 }
-
-/* Responsive: op kleinere schermen, zet alles onder elkaar */
 @media (max-width: 992px) {
   .page-grid {
     grid-template-columns: 1fr;

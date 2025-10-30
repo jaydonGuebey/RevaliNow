@@ -1,21 +1,22 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import axios from 'axios'
+import apiClient from '../api' // Gebruik de beveiligde apiClient
 import AfspraakKaart from '../components/AfspraakKaart.vue'
+// Zorg dat deze import de 'a' klein heeft
+import { useAuthStore } from '../stores/AuthStore'
 
 const alleAfspraken = ref([])
 const loading = ref(true)
 const error = ref(null)
+const actieveFilter = ref('toekomstig') 
+const AuthStore = useAuthStore() // Haal de store op
 
-// (AC 3) State om de actieve filter (tab) bij te houden
-const actieveFilter = ref('toekomstig') // 'toekomstig' of 'verleden'
-
-// Haal alle afspraken (verleden en toekomst) op van de API
+// Haal alle afspraken op
 async function fetchAfspraken(patientId) {
   loading.value = true
   error.value = null
   try {
-    const response = await axios.get(`http://localhost:3000/api/patienten/${patientId}/afspraken`)
+    const response = await apiClient.get(`/patienten/${patientId}/afspraken`)
     alleAfspraken.value = response.data
   } catch (err) {
     console.error('Fout bij ophalen afspraken:', err)
@@ -25,24 +26,28 @@ async function fetchAfspraken(patientId) {
   }
 }
 
-// (AC 1) Maak een gefilterde lijst voor toekomstige afspraken
+// Gefilterde lijst voor toekomstige afspraken
 const toekomstigeAfspraken = computed(() => {
   const nu = new Date()
   return alleAfspraken.value
     .filter(a => new Date(a.DatumTijdAfspraak) >= nu)
-    .sort((a, b) => new Date(a.DatumTijdAfspraak) - new Date(b.DatumTijdAfspraak)); // Sorteer oplopend (dichtstbijzijnde eerst)
+    .sort((a, b) => new Date(a.DatumTijdAfspraak) - new Date(b.DatumTijdAfspraak)); 
 })
 
-// (AC 3) Maak een gefilterde lijst voor afspraken in het verleden
+// Gefilterde lijst voor afspraken in het verleden
 const afsprakenVerleden = computed(() => {
   const nu = new Date()
   return alleAfspraken.value
     .filter(a => new Date(a.DatumTijdAfspraak) < nu)
-    // Sortering staat al op DESC (nieuwste eerst) vanuit de API
+    // Sortering (DESC) komt al van de API
 })
 
 onMounted(() => {
-  fetchAfspraken(1)
+  // Haal de patientId veilig uit de store
+  const patientId = AuthStore.gebruiker?.patientId
+  if (patientId) {
+    fetchAfspraken(patientId)
+  }
 })
 </script>
 
@@ -98,17 +103,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Alle stijlen voor AfsprakenView blijven hier ongewijzigd */
 h1 {
   color: #0056b3;
 }
-
 .filter-tabs {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 2rem;
   border-bottom: 2px solid #e0eaf1;
 }
-
 .filter-tabs button {
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
@@ -120,16 +124,13 @@ h1 {
   border-bottom: 3px solid transparent;
   transition: color 0.2s, border-color 0.2s;
 }
-
 .filter-tabs button:hover {
   color: #007bff;
 }
-
 .filter-tabs button.actief {
   color: #007bff;
   border-bottom-color: #007bff;
 }
-
 .loading, .no-data {
   text-align: center;
   font-size: 1.1rem;

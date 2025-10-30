@@ -28,5 +28,5 @@ app.use('/api', afspraakRoutes);
 
 // Start de server
 app.listen(port, () => {
-  console.log(`🚀 Backend server draait op http://localhost:${port}`);
+  console.log(`Backend server draait op http://localhost:${port}`);
 });
