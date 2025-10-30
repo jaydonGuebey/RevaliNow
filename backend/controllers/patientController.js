@@ -1,9 +1,8 @@
 // backend/controllers/patientController.js
 
-// Importeer de database pool
 const dbPool = require('../db');
 
-// Haal alle patiënten op (de simpele GET /api/patienten)
+// Haal alle patiënten op
 const getAllPatienten = async (req, res) => {
   try {
     const [rows] = await dbPool.query('SELECT PatientID, Voornaam, Achternaam FROM Patienten');
@@ -30,7 +29,6 @@ const getDashboard = async (req, res) => {
         }
         const patientInfo = patientInfoRows[0];
 
-        // Haal dashboard data parallel op
         const [pijnRows, oefenRows, afspraakRows] = await Promise.all([
             dbPool.query(`
                 SELECT PijnScore, DatumTijdRegistratie 
@@ -119,14 +117,24 @@ const postUitgevoerdeOefening = async (req, res) => {
             return res.status(409).json({ message: 'Deze oefening is vandaag al afgerond' });
         }
         
+        // Stap 1: Bepaal de nieuwe ID
+        const [idRows] = await dbPool.query(
+            'SELECT COALESCE(MAX(UitgevoerdeOefeningID), 0) + 1 AS newId FROM Uitgevoerde_oefeningen'
+        );
+        const newId = idRows[0].newId;
+
+        // Stap 2: Voeg de 'afvink' record toe met de nieuwe ID
         await dbPool.query(`
             INSERT INTO Uitgevoerde_oefeningen 
                 (UitgevoerdeOefeningID, PatientOefenplanID, DatumTijdAfgevinkt, IsAfgevinkt)
             VALUES 
-                ((SELECT COALESCE(MAX(t.UitgevoerdeOefeningID), 0) + 1 FROM Uitgevoerde_oefeningen t), ?, NOW(), 1)
-        `, [patientOefenplanId]);
+                (?, ?, NOW(), 1)
+        `, [newId, patientOefenplanId]);
 
-        res.status(201).json({ message: 'Oefening afgerond' });
+        res.status(201).json({ 
+            message: 'Oefening afgerond',
+            UitgevoerdeOefeningID: newId // Stuur correcte data terug
+        });
     } catch (err) {
         console.error(`Fout bij POST /api/uitgevoerde-oefeningen:`, err);
         res.status(500).json({ error: 'Interne serverfout bij afvinken' });
@@ -190,15 +198,23 @@ const postPijnindicatie = async (req, res) => {
     }
 
     try {
-        const [result] = await dbPool.query(`
+        // Stap 1: Bepaal de nieuwe ID
+        const [idRows] = await dbPool.query(
+            'SELECT COALESCE(MAX(PijnIndicatieID), 0) + 1 AS newId FROM Pijnindicaties'
+        );
+        const newPijnIndicatieID = idRows[0].newId;
+
+        // Stap 2: Voer de INSERT uit
+        await dbPool.query(`
             INSERT INTO Pijnindicaties
                 (PijnIndicatieID, PatientID, DatumTijdRegistratie, PijnScore, Toelichting)
             VALUES
-                ((SELECT COALESCE(MAX(t.PijnIndicatieID), 0) + 1 FROM Pijnindicaties t), ?, NOW(), ?, ?)
-        `, [patientId, score, toelichting || null]);
+                (?, ?, NOW(), ?, ?)
+        `, [newPijnIndicatieID, patientId, score, toelichting || null]);
 
+        // Stap 3: Stuur het object terug MET DE JUISTE ID
         res.status(201).json({
-            PijnIndicatieID: result.insertId,
+            PijnIndicatieID: newPijnIndicatieID, // Dit is nu correct
             PatientID: patientId,
             DatumTijdRegistratie: new Date().toISOString(),
             PijnScore: score,

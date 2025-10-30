@@ -1,8 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import DashboardView from '../views/DashboardView.vue'
 import OefeningenView from '../views/OefeningenView.vue'
-// Importeer de nieuwe view
 import PijnRegistratieView from '../views/PijnRegistratieView.vue'
+
+// Importeer de nieuwe logboek view
+import LogboekView from '../views/LogboekView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -18,14 +20,15 @@ const router = createRouter({
       component: OefeningenView
     },
     {
+      // Vervang de placeholder door de echte view
       path: '/logboek',
       name: 'logboek',
-      component: { template: '<div>Logboek Pagina</div>' } // Tijdelijk
+      component: LogboekView 
     },
     {
       path: '/pijnregistratie',
       name: 'pijnregistratie',
-      component: PijnRegistratieView 
+      component: PijnRegistratieView
     },
     {
       path: '/afspraken',

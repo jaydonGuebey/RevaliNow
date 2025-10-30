@@ -3,8 +3,9 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-// Importeer je nieuwe route-bestand
+// Importeer de route-bestanden
 const patientRoutes = require('./routes/patientRoutes');
+const logboekRoutes = require('./routes/logboekRoutes'); // Nieuwe import
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -14,8 +15,8 @@ app.use(cors());
 app.use(express.json()); 
 
 // Gebruik de routes
-// Alle requests naar /api/... worden nu afgehandeld door patientRoutes
 app.use('/api', patientRoutes);
+app.use('/api', logboekRoutes); // Vertel de app de logboek routes te gebruiken
 
 // Start de server
 app.listen(port, () => {
